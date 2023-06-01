@@ -14,16 +14,16 @@ verilog_tokens = {
     'root': [
         # patterns
         #  pattern, action, new_state
-        (r'\bmodule\s+(\w+)\s*', 'module', 'module'),
+        (r'\bmodule\s*(\w+)\s*', 'module', 'module'),
         (r'/\*', 'block_comment', 'block_comment'),
         (r'//#+(.*)\n', 'metacomment'),
         (r'//.*\n', None),
     ],
     'module': [
-        (r'parameter\s*(signed|integer|realtime|real|time)?\s*(\[[^]]+\])?', 'parameter_start', 'parameters'),
+        (r'parameter\s+(?:(signed|integer|realtime|real|time)\s+)?(\[[^]]+\])?', 'parameter_start', 'parameters'),
         (
-            r'^[\(\s]*(input|inout|output)\s+(reg|supply0|supply1|tri|triand|trior|tri0|tri1|wire|wand|wor|logic)?'
-            r'\s*(signed)?\s*((\[[^]]+\])+)?',
+            r'^[\(\s]*(input|inout|output)\s+(?:(reg|supply0|supply1|tri|triand|trior|tri0|tri1|wire|wand|wor|logic)\s+)?'
+            r'(?:(signed)\s+)?((\[[^]]+\])+)?',
             'module_port_start', 'module_port'),
         (r'endmodule', 'end_module', '#pop'),
         (r'/\*', 'block_comment', 'block_comment'),
@@ -31,8 +31,8 @@ verilog_tokens = {
         (r'//.*\n', None),
     ],
     'parameters': [
-        (r'\s*parameter\s*(signed|integer|realtime|real|time)?\s*(\[[^]]+\])?', 'parameter_start'),
-        (r'\s*(\w+)\s*=\s*((?:(?!\/\/|[,)]).)*)', 'param_item'),
+        (r'\s*parameter\s+(?:(signed|integer|realtime|real|time)\s+)?(\[[^]]+\])?', 'parameter_start'),
+        (r'\s*(\w+)\s*=\s*((?:(?!\/\/|[,)]).)+)', 'param_item'),
         (r'//#+(.*)\n', 'metacomment'),
         (r',', None),
         (r'//.*\n', None),
@@ -40,8 +40,8 @@ verilog_tokens = {
     ],
     'module_port': [
         (
-            r'\s*(input|inout|output)\s+(reg|supply0|supply1|tri|triand|trior|tri0|tri1|wire|wand|wor|logic)?'
-            r'\s*(signed)?\s*((\[[^]]+\])+)?',
+            r'\s*(input|inout|output)\s+(?:(reg|supply0|supply1|tri|triand|trior|tri0|tri1|wire|wand|wor|logic)\s+)?'
+            r'(signed)?\s*((\[[^]]+\])+)?',
             'module_port_start'),
         (r'\s*(\w+)\s*,?', 'port_param'),
         (r'/\*', 'block_comment', 'block_comment'),
