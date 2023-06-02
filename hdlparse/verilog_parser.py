@@ -80,10 +80,11 @@ class VerilogObject:
 class VerilogParameter:
     """Parameter and port to a module"""
 
-    def __init__(self, name, mode=None, data_type=None, default_value=None, desc=None):
+    def __init__(self, name, mode=None, data_type=None, data_size=None, default_value=None, desc=None):
         self.name = name
         self.mode = mode
         self.data_type = data_type
+        self.data_size = data_size
         self.default_value = default_value
         self.desc = [] if desc is None else desc
 
@@ -92,6 +93,8 @@ class VerilogParameter:
             param = f"{self.name} : {self.mode} {self.data_type}"
         else:
             param = f"{self.name} : {self.data_type}"
+        if self.data_size is not None:
+            param = f"{param}{self.data_size}"
         if self.default_value is not None:
             param = f"{param} := {self.default_value}"
         return param
@@ -143,7 +146,9 @@ def parse_verilog(text):
     saved_type = None
     mode = 'input'
     port_type = 'wire'
+    port_size = None
     param_type = ''
+    param_size = None
 
     metacomments = []
     parameters = []
@@ -179,41 +184,40 @@ def parse_verilog(text):
         elif action == 'parameter_start':
             net_type, vec_range = groups
 
-            new_param_type = ''
+            param_type = ''
+            param_size = None
             if net_type is not None:
-                new_param_type += net_type
+                param_type = net_type
 
             if vec_range is not None:
-                new_param_type += ' ' + vec_range
-
-            param_type = new_param_type
+                param_size = vec_range
 
         elif action == 'param_item':
             param_name, default_value = groups
-            param = VerilogParameter(param_name, 'param', param_type, default_value)
+            param = VerilogParameter(param_name, 'param', param_type, param_size, default_value)
             generics.append(param)
             last_item = param
 
         elif action == 'module_port_start':
             new_mode, net_type, signed, vec_range = groups[0:4]
 
-            new_port_type = ''
+            port_type = 'wire'
+            port_size = None
             if net_type is not None:
-                new_port_type += net_type
+                port_type = net_type
 
             if signed is not None:
-                new_port_type += ' ' + signed
+                port_type += ' ' + signed
 
             if vec_range is not None:
-                new_port_type += ' ' + vec_range
+                port_size = vec_range
 
             # Start with new mode
             mode = new_mode
-            port_type = new_port_type
 
         elif action == 'port_param':
             port_ident = groups[0]
-            port_obj = VerilogParameter(port_ident, mode, port_type)
+            port_obj = VerilogParameter(port_ident, mode, port_type, port_size)
             ports[port_ident] = port_obj
             port_param_index += 1
             last_item = port_obj
