@@ -9,6 +9,13 @@ from hdlparse.minilexer import MiniLexer
 
 """Verilog documentation parser"""
 
+
+# Common strings
+verilog_strings = {
+    'metacomment': r'//(?:/<|#+)\s+(.*)\n'
+}
+
+
 verilog_tokens = {
     # state
     'root': [
@@ -16,7 +23,7 @@ verilog_tokens = {
         #  pattern, action, new_state
         (r'\bmodule\s*(\w+)\s*', 'module', 'module'),
         (r'/\*', 'block_comment', 'block_comment'),
-        (r'//#+(.*)\n', 'metacomment'),
+        (verilog_strings['metacomment'], 'metacomment'),
         (r'//.*\n', None),
     ],
     'module': [
@@ -33,7 +40,7 @@ verilog_tokens = {
     'parameters': [
         (r'\s*parameter\s+(?:(signed|integer|realtime|real|time)\s+)?(\[[^]]+\])?', 'parameter_start'),
         (r'\s*(\w+)\s*=\s*((?:(?!\/\/|[,)]).)+)', 'param_item'),
-        (r'//#+(.*)\n', 'metacomment'),
+        (verilog_strings['metacomment'], 'metacomment'),
         (r',', None),
         (r'//.*\n', None),
         (r'[);]', None, '#pop'),
@@ -47,7 +54,7 @@ verilog_tokens = {
         (r'/\*', 'block_comment', 'block_comment'),
         (r'[);]', None, '#pop'),
         (r'//#\s*{{(.*)}}\n', 'section_meta'),
-        (r'//#+(.*)\n', 'metacomment'),
+        (verilog_strings['metacomment'], 'metacomment'),
         (r'//.*\n', None),
     ],
 
