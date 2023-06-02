@@ -27,9 +27,9 @@ verilog_tokens = {
         (r'//.*\n', None),
     ],
     'module': [
-        (r'parameter\s+(?:(signed|integer|realtime|real|time)\s+)?(\[[^]]+\])?', 'parameter_start', 'parameters'),
+        (r'parameter\s+(?:(signed|integer|realtime|real|time|logic)\s+)?(\[[^]]+\])?', 'parameter_start', 'parameters'),
         (
-            r'^[\(\s]*(input|inout|output)\s+(?:(reg|supply0|supply1|tri|triand|trior|tri0|tri1|wire|wand|wor|logic)\s+)?'
+            r'^[\(\s]*(input|inout|output)\s+(?:var\s+)?(?:(reg|supply0|supply1|tri|triand|trior|tri0|tri1|wire|wand|wor|logic)\s+)?'
             r'(?:(signed)\s+)?((\[[^]]+\])+)?',
             'module_port_start', 'module_port'),
         (r'endmodule', 'end_module', '#pop'),
@@ -38,7 +38,7 @@ verilog_tokens = {
         (r'//.*\n', None),
     ],
     'parameters': [
-        (r'\s*parameter\s+(?:(signed|integer|realtime|real|time)\s+)?(\[[^]]+\])?', 'parameter_start'),
+        (r'\s*parameter\s+(?:(signed|integer|realtime|real|time|logic)\s+)?(\[[^]]+\])?', 'parameter_start'),
         (r'\s*(\w+)\s*=\s*((?:(?!\/\/|[,)]).)+)', 'param_item'),
         (verilog_strings['metacomment'], 'metacomment'),
         (r',', None),
@@ -47,7 +47,7 @@ verilog_tokens = {
     ],
     'module_port': [
         (
-            r'\s*(input|inout|output)\s+(?:(reg|supply0|supply1|tri|triand|trior|tri0|tri1|wire|wand|wor|logic)\s+)?'
+            r'\s*(input|inout|output)\s+(?:var\s+)?(?:(reg|supply0|supply1|tri|triand|trior|tri0|tri1|wire|wand|wor|logic)\s+)?'
             r'(signed)?\s*((\[[^]]+\])+)?',
             'module_port_start'),
         (r'\s*(\w+)\s*,?', 'port_param'),
