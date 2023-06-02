@@ -181,7 +181,7 @@ def parse_verilog(text):
 
         elif action == 'param_item':
             param_name, default_value = groups
-            param = VerilogParameter(param_name, 'in', param_type, default_value)
+            param = VerilogParameter(param_name, 'param', param_type, default_value)
             generics.append(param)
             last_item = param
 
