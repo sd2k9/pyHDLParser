@@ -12,7 +12,8 @@ from hdlparse.minilexer import MiniLexer
 
 # Common strings
 verilog_strings = {
-    'metacomment': r'//(?:/<|#+)\s+(.*)\n',
+    'metacomment':  r'//(?:/<|#+)\s+(.*)\n',    # Provide additional information
+    'section_meta': r'//#\s*{{(.*)}}\n',        # Sectioning of parameters and port
     'parameter':   r'parameter\s+(?:(signed|integer|realtime|real|time|logic)\s+)?(\[[^]]+\])?',
     'port': r'(input|inout|output)\s+(?:var\s+)?(?:(reg|supply0|supply1|tri|triand|trior|tri0|tri1|wire|wand|wor|logic)\s+)?'
 }
@@ -36,12 +37,13 @@ verilog_tokens = {
             'module_port_start', 'module_port'),
         (r'endmodule', 'end_module', '#pop'),
         (r'/\*', 'block_comment', 'block_comment'),
-        (r'//#\s*{{(.*)}}\n', 'section_meta'),
+        (verilog_strings['section_meta'], 'section_all'),
         (r'//.*\n', None),
     ],
     'parameters': [
         (r'\s*' + verilog_strings['parameter'], 'parameter_start'),
         (r'\s*(\w+)\s*=\s*((?:(?!\/\/|[,)]).)+)', 'param_item'),
+        (verilog_strings['section_meta'], 'section_param'),
         (verilog_strings['metacomment'], 'metacomment'),
         (r',', None),
         (r'//.*\n', None),
@@ -55,7 +57,7 @@ verilog_tokens = {
         (r'\s*(\w+)\s*,?', 'port_param'),
         (r'/\*', 'block_comment', 'block_comment'),
         (r'[);]', None, '#pop'),
-        (r'//#\s*{{(.*)}}\n', 'section_meta'),
+        (verilog_strings['section_meta'], 'section_port'),
         (verilog_strings['metacomment'], 'metacomment'),
         (r'//.*\n', None),
     ],
@@ -80,7 +82,8 @@ class VerilogObject:
 class VerilogParameter:
     """Parameter and port to a module"""
 
-    def __init__(self, name, mode=None, data_type=None, data_size=None, default_value=None, desc=None):
+    def __init__(self, name, mode=None, data_type=None, data_size=None,
+                 default_value=None, desc=None):
         self.name = name
         self.mode = mode
         self.data_type = data_type
@@ -106,13 +109,15 @@ class VerilogParameter:
 class VerilogModule(VerilogObject):
     """Module definition"""
 
-    def __init__(self, name, ports, generics=None, sections=None, desc=None):
+    def __init__(self, name, ports, generics=None,
+                 paramsections=None, portsections=None, desc=None):
         VerilogObject.__init__(self, name, desc)
         self.kind = 'module'
         # Verilog params
         self.generics = generics if generics is not None else []
         self.ports = ports
-        self.sections = sections if sections is not None else {}
+        self.paramsections = paramsections if paramsections is not None else {}
+        self.portsections  = portsections  if portsections  is not None else {}
 
     def __repr__(self):
         return f"VerilogModule('{self.name}') {self.ports}"
@@ -155,8 +160,10 @@ def parse_verilog(text):
 
     generics = []
     ports = OrderedDict()
-    sections = []
-    port_param_index = 0
+    paramsections = []
+    param_index = 0
+    portsections = []
+    port_index = 0
     last_item = None
     array_range_start_pos = 0
 
@@ -164,22 +171,32 @@ def parse_verilog(text):
 
     for pos, action, groups in lex.run(text):
         if action == 'metacomment':
+            # Comment is description text
             comment = groups[0].strip()
             if last_item is None:
                 metacomments.append(comment)
             else:
                 last_item.desc.append(comment)
 
-        if action == 'section_meta':
-            sections.append((port_param_index, groups[0]))
+        if action == 'section_all':
+            paramsections.append((param_index, groups[0]))
+            portsections.append((port_index, groups[0]))
+
+        if action == 'section_param':
+            paramsections.append((param_index, groups[0]))
+
+        if action == 'section_port':
+            portsections.append((port_index, groups[0]))
 
         elif action == 'module':
             kind = 'module'
             name = groups[0]
             generics = []
             ports = OrderedDict()
-            sections = []
-            port_param_index = 0
+            paramsections = []
+            param_index = 0
+            portsections = []
+            port_index = 0
 
         elif action == 'parameter_start':
             net_type, vec_range = groups
@@ -194,8 +211,11 @@ def parse_verilog(text):
 
         elif action == 'param_item':
             param_name, default_value = groups
-            param = VerilogParameter(param_name, 'param', param_type, param_size, default_value)
+            param = VerilogParameter(name=param_name, mode='param',
+                       data_type=param_type, data_size=param_size,
+                       default_value=default_value)
             generics.append(param)
+            param_index += 1
             last_item = param
 
         elif action == 'module_port_start':
@@ -217,13 +237,15 @@ def parse_verilog(text):
 
         elif action == 'port_param':
             port_ident = groups[0]
-            port_obj = VerilogParameter(port_ident, mode, port_type, port_size)
+            port_obj = VerilogParameter(name=port_ident, mode=mode,
+                 data_type=port_type, data_size=port_size)
             ports[port_ident] = port_obj
-            port_param_index += 1
+            port_index += 1
             last_item = port_obj
 
         elif action == 'end_module':
-            vobj = VerilogModule(name, ports.values(), generics, dict(sections), metacomments)
+            vobj = VerilogModule(name, ports.values(), generics,
+                            dict(paramsections), dict(portsections), metacomments)
             objects.append(vobj)
             last_item = None
             metacomments = []
