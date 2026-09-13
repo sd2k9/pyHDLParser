@@ -1,0 +1,216 @@
+#!/usr/bin/env python3
+# -*- mode: python; coding: utf-8 -*-
+# file name: ''sv_extract_port_param_as_markdown''
+# function: See help text
+#
+#      created: 2023-06-05
+#
+
+# ********************************************************************************
+# *** Import modules
+# SystemVerilog parser from this repository
+import sys
+sys.path.append( sys.path[0] + '/../')
+import hdlparse.verilog_parser as vlog
+# Argument parser
+import argparse
+# Text-unindentation for here-strings
+import textwrap
+# File and path functions
+import pathlib
+
+
+# ********************************************************************************
+# *** Global settings as dictionary
+opts = {# Settings from command line
+       'overwrite': False,            # True: Overwrite existing output files
+       }
+
+# Constants
+program_version = "1.0.0"
+
+
+# ********************************************************************************
+
+def escape_unterscores(text):
+   """Allow line breaks for Pandoc/Latex after underscores
+   """
+
+   return text.replace("_", r"\textunderscore\allowbreak ")
+
+
+# ********************************************************************************
+
+class Argparse_Once(argparse.Action):
+   """Argparse Action with only a single argument, preventing multiple issuing
+
+   http://stackoverflow.com/questions/14915986/only-one-command-line-argument-with-argparse
+   """
+   def __call__(self, parser, namespace, values, option_string = None):
+       # print '{n} {v} {o}'.format(n = namespace, v = values, o = option_string)
+       if getattr(namespace, self.dest) is not None:
+          msg = '{o} can only be specified once'.format(o = option_string)
+          raise argparse.ArgumentError(None, msg)
+       setattr(namespace, self.dest, values)
+
+# *** Parse command line arguments
+def parse_command_line():
+    """Description of Command line arguments
+
+    Return: Command line object
+    """
+
+    cmd_desc = textwrap.dedent("""\
+    Extract port and parameter tables from a SystemVerilog file and write them as 
+    Markdown tables to separate output files. When there are multiple modules in the file, 
+    only the first one is parsed. Port and parameter information is formatted as Markdown 
+    tables with columns for Direction/Name, Width, Name/Default, and Description. Underscores 
+    in names are automatically escaped for LaTeX/Pandoc compatibility. When section metacomments 
+    are present, the output is split into labelled sections.
+
+    This program uses the Hdlparse library for parsing SystemVerilog source code.
+    """)
+
+    cmd_epilog = textwrap.dedent("""\
+    Example:
+      python sv_extract_port_param_as_markdown -i design.sv --oport ports.md --oparam params.md
+
+    Output Ports table format:
+      | Direction | Width | Name  | Description |
+      |-----------|-------|-------|-------------|
+      | Input     | 1     | clk   | Clock input |
+      | Output    | [7:0] | data  |             |
+
+    Output Parameters table format:
+      | Parameter Name | Default | Description         |
+      |----------------|---------|---------------------|
+      | DATA_WIDTH     | 8       | Width of data bus   |
+
+    For more information, visit: https://github.com/sd2k9/pyHDLParser
+
+    License: MIT License - See LICENSE file for details.
+    """)
+
+    cmd_version=f"%(prog)s {program_version}, verilog_parser {vlog.__version__}"
+    cmd_parser = argparse.ArgumentParser(description=cmd_desc, epilog=cmd_epilog,
+                 formatter_class=argparse.RawDescriptionHelpFormatter)  # With pre-formatted description
+    cmd_parser.add_argument('-V', '--version', action='version', version=cmd_version)
+    # Add mandatory parameters
+    cmd_parser.add_argument('-i', '--ifile', required=True, action=Argparse_Once, type=pathlib.Path,
+        help='SystemVerilog File to read', dest='ifile', metavar='infile')
+    cmd_parser.add_argument('--oport', required=True, action=Argparse_Once, type=pathlib.Path,
+        help='Output file for port', dest='outfile_port', metavar='outfile')
+    cmd_parser.add_argument('--oparam', required=True, action=Argparse_Once, type=pathlib.Path,
+        help='Output file for parameters', dest='outfile_param', metavar='outfile')
+
+    # Optional paremeters
+    cmd_parser.add_argument('--force', dest='force', action='store_true', default=False,
+                        help='Overwrite existing output files')
+
+    # Parse - abort on failure
+    cmd_line = cmd_parser.parse_args()
+
+    # Set overwrite mode
+    opts['overwrite'] = cmd_line.force
+
+    # Over and out
+    return (0, {'ifile': cmd_line.ifile, 'port': cmd_line.outfile_port, 'param': cmd_line.outfile_param})
+
+
+
+# ********************************************************************************
+
+# *** Main Program
+def main():
+
+   # *** Command line parsing
+   fils = {}
+   (retval, fils) = parse_command_line()
+   if retval:
+        eprint("Command line parsing error")
+        return retval
+   if opts['overwrite']:
+      print("Overwrite mode enabled: Overwrite existing output files")
+   print(f"Input file:{fils['ifile']}\n"
+          f"Output port file:{fils['port']}\n"
+          f"Output param file:{fils['param']}")
+
+   # *** Open output files
+   if not opts['overwrite']:
+      # Bail out when output files exist already
+      for f in [fils['port'], fils['param'] ]:
+         if f.exists():
+            print(f"File {f} exists already! Use --force to overwrite.")
+            return 1
+
+   oport = fils['port'].open("w")
+   oparam = fils['param'].open("w")
+
+
+   # *** Parse the source file
+   # Take the first module found in source file
+   sv = vlog.VerilogExtractor().extract_objects(fils['ifile'])[0]
+   print(f"Reading input file done\nExtracting data from module \"{sv.name}\"")
+
+   # TODO: Combine port and parameter writes
+   # First, write ports
+   # Header
+   header = [
+      "| Direction | Width          | Name                       | Description                                             |\n",
+      "|-----------|----------------|----------------------------|---------------------------------------------------------|\n" ]
+   line = 0    # Count lines
+   firstheader = False    # First header written at file start?
+   for p in sv.ports:
+      if line in sv.portsections:
+         # There is a new section in this line
+         oport.write(f"\n# {sv.portsections[line]}\n\n")
+         oport.writelines(header)
+         firstheader = True
+      # In case we don't start with a section, we need to write the header initially
+      if firstheader == False:
+         oport.writelines(header)
+         firstheader = True
+      if p.data_size is None:
+         data_size = 1
+      else:
+         data_size = p.data_size
+      desc = " ".join(p.desc)
+      oport.write(escape_unterscores(f"| {p.mode.capitalize()} | {data_size} | {p.name} | {desc} |\n"))
+      line = line + 1
+
+   # Next, write parameters
+   header = [
+      "| Parameter Name               | Default                | Description                                            |\n",
+      "|------------------------------|------------------------|--------------------------------------------------------|\n" ]
+   line = 0    # Count lines
+   firstheader = False    # First header written at file start?
+   for p in sv.generics:
+      if line in sv.paramsections:
+         # There is a new section in this line
+         oparam.write(f"\n# {sv.paramsections[line]}\n\n")
+         oparam.writelines(header)
+         firstheader = True
+      # In case we don't start with a section, we need to write the header initially
+      if firstheader == False:
+         oparam.writelines(header)
+         firstheader = True
+      if p.data_size is None:
+         data_size = 1
+      else:
+         data_size = p.data_size
+      if p.default_value is None:
+         default_value = "/"
+      else:
+         default_value = p.default_value
+      desc = " ".join(p.desc)
+      oparam.write(escape_unterscores(f"| {p.name} | {default_value} | {desc} |\n"))
+      line = line + 1
+
+   # *** Over and out
+   oport.close()
+   oparam.close()
+   return 0
+
+# *** Call Main program
+if __name__ == "__main__":
+    sys.exit(main())

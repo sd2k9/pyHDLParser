@@ -10,6 +10,8 @@ from hdlparse.minilexer import MiniLexer
 
 """VHDL documentation parser"""
 
+__version__ = '1.0.0'
+
 vhdl_tokens = {
     'root': [
         (r'package\s+(\w+)\s+is', 'package', 'package'),
@@ -190,7 +192,7 @@ class VhdlParameter:
         self.data_type = data_type
         self.default_value = default_value
         self.desc = desc
-        self.param_desc = None
+        self.param_desc = param_desc
 
     def __str__(self):
         if self.mode is not None:
@@ -291,7 +293,7 @@ class VhdlConstant(VhdlObject):
     Args:
       name (str): Name of the constant
       package (str): Package containing the constant
-      base_type (str): Type fo the constant
+      base_type (str): Type of the constant
       desc (str, optional): Description from object metacomments
     """
 
@@ -837,7 +839,7 @@ package foo is
       f,g,h : inout bit := '1'; -- bit ports 
       v : in std_logic_vector(lBound -1 downto 0) -- array range
     ); -- port list comment
-    
+
   end component;
 
 end package;

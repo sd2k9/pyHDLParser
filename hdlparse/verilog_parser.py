@@ -7,14 +7,15 @@ from collections import OrderedDict
 
 from hdlparse.minilexer import MiniLexer
 
-"""Verilog documentation parser"""
+"""SystemVerilog documentation parser"""
 
+__version__ = '1.0.0'
 
 # Common strings
 verilog_strings = {
     'metacomment':  r'//(?:/<|#+)\s+(.*)\n',    # Provide additional information
     'section_meta': r'//#\s*{{(.*)}}\n',        # Sectioning of parameters and port
-    'parameter':   r'parameter\s+(?:(signed|integer|realtime|real|time|logic)\s+)?(\[[^]]+\])?',
+    'parameter':   r'\bparameter\s+(?:(signed|integer|realtime|real|time|logic)\s+)?(\[[^]]+\])?',
     'port': r'(input|inout|output)\s+(?:var\s+)?(?:(reg|supply0|supply1|tri|triand|trior|tri0|tri1|wire|wand|wor|logic)\s+)?'
 }
 
@@ -30,6 +31,7 @@ verilog_tokens = {
         (r'//.*\n', None),
     ],
     'module': [
+        (r'\b\s*localparam\b[^\n]*\n', None),       # Skip localparam
         (verilog_strings['parameter'], 'parameter_start', 'parameters'),
         (
             r'^[\(\s]*' + verilog_strings['port'] + \
@@ -41,6 +43,7 @@ verilog_tokens = {
         (r'//.*\n', None),
     ],
     'parameters': [
+        (r'\b\s*localparam\b[^\n]*\n', None),       # Skip localparam
         (r'\s*' + verilog_strings['parameter'], 'parameter_start'),
         (r'\s*(\w+)\s*=\s*((?:(?!\/\/|[,)]).)+)', 'param_item'),
         (verilog_strings['section_meta'], 'section_param'),
@@ -254,14 +257,14 @@ def parse_verilog(text):
 
 
 def is_verilog(fname):
-    """Identify file as Verilog by its extension
+    """Identify file as SystemVerilog by its extension
 
     Args:
       fname (str): File name to check
     Returns:
-      True when file has a Verilog extension.
+      True when file has a SystemVerilog extension.
     """
-    return os.path.splitext(fname)[1].lower() in ('.vlog', '.v')
+    return os.path.splitext(fname)[1].lower() in ('.vlog', '.v', '.sv')
 
 
 class VerilogExtractor:
@@ -308,13 +311,3 @@ class VerilogExtractor:
             objects = [o for o in objects if isinstance(o, type_filter)]
 
         return objects
-
-    def is_array(self, data_type):
-        """Check if a type is an array type
-
-        Args:
-          data_type (str): Data type
-        Returns:
-          True when a data type is an array.
-        """
-        return '[' in data_type
